@@ -1,0 +1,283 @@
+diff --git a/Makefile.libretro b/Makefile.libretro
+index e5dda1c..8f1d2d8 100644
+--- a/Makefile.libretro
++++ b/Makefile.libretro
+@@ -1,5 +1,5 @@
+ DEBUG = 0
+-HAVE_NETWORK = 0
++HAVE_NETWORK = 1
+ VIDEO_RGB565 = 1
+ EMULATORJS_THREADS ?= 0
+ 
+diff --git a/libgambatte/include/gambatte.h b/libgambatte/include/gambatte.h
+index 5f67921..341469f 100644
+--- a/libgambatte/include/gambatte.h
++++ b/libgambatte/include/gambatte.h
+@@ -95,6 +95,7 @@ public:
+ #ifdef HAVE_NETWORK
+ 	/** Sets the callback used for transferring serial data. */
+ 	void setSerialIO(SerialIO *serial_io);
++	bool linkStalled() const;
+ #endif
+ 	
+ 	/** Sets the directory used for storing save data. The default is the same directory as the ROM Image file. */
+diff --git a/libgambatte/libretro/libretro.cpp b/libgambatte/libretro/libretro.cpp
+index 1c4471c..1a520d0 100644
+--- a/libgambatte/libretro/libretro.cpp
++++ b/libgambatte/libretro/libretro.cpp
+@@ -1523,6 +1523,7 @@ enum SerialMode {
+    SERIAL_CLIENT
+ };
+ static NetSerial gb_net_serial;
++static JsSerial gb_js_serial;
+ static SerialMode gb_serialMode = SERIAL_NONE;
+ static int gb_NetworkPort = 12345;
+ static std::string gb_NetworkClientAddr;
+@@ -2290,7 +2291,7 @@ static void check_variables(bool startup)
+          break;
+       default:
+          gb_net_serial.stop();
+-         gb.setSerialIO(NULL);
++         gb.setSerialIO(&gb_js_serial);
+          break;
+    }
+ 
+@@ -2718,8 +2719,21 @@ void retro_run()
+    } static sound_buf;
+    unsigned samples = SOUND_SAMPLES_PER_RUN;
+ 
+-   while (gb.runFor(video_buf, VIDEO_PITCH, sound_buf.u32, SOUND_BUFF_SIZE, samples) == -1)
++   while (gb.runFor(video_buf, VIDEO_PITCH, sound_buf.u32, SOUND_BUFF_SIZE, samples) == -1 || gb.linkStalled())
+    {
++      /* EmuFlow: esperando o byte do outro lado, o quadro termina aqui e o JS volta a receber. */
++      if (gb.linkStalled())
++      {
++         if (use_cc_resampler)
++            CC_renderaudio((audio_frame_t*)sound_buf.u32, samples);
++         else
++            blipper_renderaudio(sound_buf.i16, samples);
++         samples_count += samples;
++         audio_upload_samples();
++         video_cb(NULL, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_PITCH * sizeof(gambatte::video_pixel_t));
++         frames_count = samples_count / SOUND_SAMPLES_PER_FRAME;
++         return;
++      }
+       if (use_cc_resampler)
+          CC_renderaudio((audio_frame_t*)sound_buf.u32, samples);
+       else
+diff --git a/libgambatte/libretro/libretro_core_options.h b/libgambatte/libretro/libretro_core_options.h
+index 7cbeea0..d054458 100644
+--- a/libgambatte/libretro/libretro_core_options.h
++++ b/libgambatte/libretro/libretro_core_options.h
+@@ -834,7 +834,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
+       },
+       "10"
+    },
+-#ifdef HAVE_NETWORK
++#if 0 /* EmuFlow: era HAVE_NETWORK */
+    {
+       "gambatte_show_gb_link_settings",
+       "Show Game Link Settings",
+diff --git a/libgambatte/libretro/net_serial.cpp b/libgambatte/libretro/net_serial.cpp
+index b19605b..3de4bc0 100644
+--- a/libgambatte/libretro/net_serial.cpp
++++ b/libgambatte/libretro/net_serial.cpp
+@@ -16,6 +16,41 @@
+ #include <netdb.h>
+ #endif
+ 
++#include <emscripten.h>
++bool JsSerial::connected()
++{
++	return EM_ASM_INT({ return Module['emuflowSerial'] ? 1 : 0; }) != 0;
++}
++unsigned char JsSerial::send(unsigned char data, bool fastCgb)
++{
++	return EM_ASM_INT({ var s = Module['emuflowSerial']; return s ? s['send']($0, $1) : 0; }, data, fastCgb ? 1 : 0);
++}
++/* Sem o site do outro lado (o cabo caiu no meio do byte), a transferencia termina como cabo solto. */
++bool JsSerial::poll(unsigned char& in, bool& fastCgb)
++{
++	int v = EM_ASM_INT({ var s = Module['emuflowSerial']; return s ? s['poll']() : 255; });
++	if (v < 0) return false;
++	in = v & 0xFF;
++	fastCgb = (v >> 8) & 1;
++	return true;
++}
++void JsSerial::noteExternal(unsigned char sb)
++{
++	EM_ASM({ var s = Module['emuflowSerial']; if (s) s['noteExternal']($0); }, sb);
++}
++void JsSerial::cancel()
++{
++	EM_ASM({ var s = Module['emuflowSerial']; if (s) s['cancel'](); });
++}
++bool JsSerial::check(unsigned char out, unsigned char& in, bool& fastCgb)
++{
++	int v = EM_ASM_INT({ var s = Module['emuflowSerial']; return s ? s['clock']($0) : -1; }, out);
++	if (v < 0) return false;
++	in = v & 0xFF;
++	fastCgb = (v >> 8) & 1;
++	return true;
++}
++
+ NetSerial::NetSerial()
+ : is_stopped_(true)
+ , is_server_(false)
+diff --git a/libgambatte/libretro/net_serial.h b/libgambatte/libretro/net_serial.h
+index fb0edeb..a2f59a4 100644
+--- a/libgambatte/libretro/net_serial.h
++++ b/libgambatte/libretro/net_serial.h
+@@ -9,6 +9,18 @@
+ #include <gambatte.h>
+ #include <time.h>
+ 
++/* EmuFlow: o cabo sai pelo `Module.emuflowSerial`, que o site poe enquanto ha alguem ligado. */
++class JsSerial : public gambatte::SerialIO
++{
++	public:
++		virtual bool connected();
++		virtual unsigned char send(unsigned char data, bool fastCgb);
++		virtual bool poll(unsigned char& in, bool& fastCgb);
++		virtual void noteExternal(unsigned char sb);
++		virtual void cancel();
++		virtual bool check(unsigned char out, unsigned char& in, bool& fastCgb);
++};
++
+ class NetSerial : public gambatte::SerialIO
+ {
+ 	public:
+diff --git a/libgambatte/src/cpu.h b/libgambatte/src/cpu.h
+index 76c29de..a1374cf 100644
+--- a/libgambatte/src/cpu.h
++++ b/libgambatte/src/cpu.h
+@@ -66,6 +66,7 @@ public:
+ 		mem_.setInputGetter(getInput);
+ 	}
+ #ifdef HAVE_NETWORK
++	bool linkStalled() const { return mem_.linkStalled(); }
+ 	void setSerialIO(SerialIO *serial_io) {
+ 		mem_.setSerialIO(serial_io);
+ 	}
+diff --git a/libgambatte/src/gambatte-memory.cpp b/libgambatte/src/gambatte-memory.cpp
+index e4c3435..2500ce6 100644
+--- a/libgambatte/src/gambatte-memory.cpp
++++ b/libgambatte/src/gambatte-memory.cpp
+@@ -34,6 +34,9 @@ Memory::Memory(Interrupter const &interrupter) :
+    getInput_(0)
+ #ifdef HAVE_NETWORK
+ , serial_io_(0)
++, serialWaiting_(false)
++, serialWaitingFast_(false)
++, serialStall_(false)
+ #endif
+ , divLastUpdate_(0)
+ , lastOamDmaUpdate_(disabled_time)
+@@ -89,6 +92,9 @@ static int serialCntFrom(unsigned long cyclesUntilDone, bool cgbFast) {
+ }
+ 
+ void Memory::loadState(SaveState const &state) {
++#ifdef HAVE_NETWORK
++	serialWaiting_ = false;
++#endif
+ 	psg_.loadState(state);
+ 	lcd_.loadState(state, state.mem.oamDmaPos < 0xA0 ? cart_.rdisabledRam() : ioamhram_);
+ 	tima_.loadState(state, TimaInterruptRequester(intreq_));
+@@ -163,6 +169,16 @@ void Memory::startSerialTransfer(unsigned long cc, unsigned char data, bool fast
+ 
+ void Memory::checkSerial(unsigned long const cc) {
+ 	// Periodically checks if serial data is received
++	if (serial_io_ != 0 && serialWaiting_) {
++		unsigned char reply;
++		bool fastReply;
++		if (serial_io_->poll(reply, fastReply)) {
++			serialWaiting_ = false;
++			startSerialTransfer(cc, reply, serialWaitingFast_);
++		} else if (serialStall_)
++			intreq_.setEventTime<intevent_end>(cc);
++		return;
++	}
+ 	if ((serial_io_ != 0) &&
+ 		 ((ioamhram_[0x102] & 0x80) == 0x80) &&
+ 		 (intreq_.eventTime(intevent_serial) == disabled_time)) {
+@@ -688,10 +704,16 @@ void Memory::nontrivial_ff_write(unsigned const p, unsigned data, unsigned long
+ #ifdef HAVE_NETWORK
+ 		if ((data & 0x81) == 0x81)
+       {
+-			unsigned char receivedByte = 0xFF;
+-			if (serial_io_ != 0)
+-				receivedByte = serial_io_->send(ioamhram_[0x101], (data & isCgb() * 2));
+-			startSerialTransfer(cc, receivedByte, (data & isCgb() * 2));
++			if (serial_io_ != 0 && serial_io_->connected()) {
++				if (!serialWaiting_) {
++					serialStall_ = serial_io_->send(ioamhram_[0x101], (data & isCgb() * 2)) != 0;
++					serialWaiting_ = true;
++					if (serialStall_) intreq_.setEventTime<intevent_end>(cc);
++					serialWaitingFast_ = (data & isCgb() * 2);
++				}
++				intreq_.setEventTime<intevent_serial>(disabled_time);
++			} else
++				startSerialTransfer(cc, 0xFF, (data & isCgb() * 2));
+       }
+ #else
+ 		if ((data & 0x81) == 0x81)
+@@ -704,6 +726,14 @@ void Memory::nontrivial_ff_write(unsigned const p, unsigned data, unsigned long
+          intreq_.setEventTime<intevent_serial>(disabled_time);
+ #endif
+ 
++		if (serial_io_ != 0) {
++			if ((data & 0x81) == 0x80)
++				serial_io_->noteExternal(ioamhram_[0x101]);
++			if (!(data & 0x80) && serialWaiting_) {
++				serial_io_->cancel();
++				serialWaiting_ = false;
++			}
++		}
+ 		data |= 0x7E - isCgb() * 2;
+ 		break;
+ 	case 0x04:
+diff --git a/libgambatte/src/gambatte-memory.h b/libgambatte/src/gambatte-memory.h
+index b925718..5c703d3 100644
+--- a/libgambatte/src/gambatte-memory.h
++++ b/libgambatte/src/gambatte-memory.h
+@@ -144,6 +144,12 @@ private:
+ 	Cartridge cart_;
+ 	unsigned char ioamhram_[0x200];
+ #ifdef HAVE_NETWORK
++	bool serialWaiting_;
++	bool serialWaitingFast_;
++	bool serialStall_;
++public:
++	bool linkStalled() const { return serialWaiting_ && serialStall_; }
++private:
+ 	unsigned char serialize_value_;
+ 	bool serialize_is_fastcgb_;
+ 	SerialIO *serial_io_;
+diff --git a/libgambatte/src/gambatte.cpp b/libgambatte/src/gambatte.cpp
+index bef0bf2..b4d5e4f 100644
+--- a/libgambatte/src/gambatte.cpp
++++ b/libgambatte/src/gambatte.cpp
+@@ -92,6 +92,7 @@ void GB::setBootloaderGetter(bool (*getter)(void* userdata, bool isgbc, uint8_t*
+ }
+ 
+ #ifdef HAVE_NETWORK
++bool GB::linkStalled() const { return p_->cpu.linkStalled(); }
+ void GB::setSerialIO(SerialIO *serial_io) {
+ 	p_->cpu.setSerialIO(serial_io);
+ }
+diff --git a/libgambatte/src/serial_io.h b/libgambatte/src/serial_io.h
+index ad94255..65d83cc 100644
+--- a/libgambatte/src/serial_io.h
++++ b/libgambatte/src/serial_io.h
+@@ -26,6 +26,11 @@ class SerialIO
+ 	public:
+ 		virtual ~SerialIO() {};
+ 
++		/* EmuFlow: o outro lado do cabo fica no JS, que nao pode bloquear. */
++		virtual bool connected() { return true; }
++		virtual bool poll(unsigned char& in, bool& fastCgb) { return false; }
++		virtual void noteExternal(unsigned char sb) {}
++		virtual void cancel() {}
+ 		virtual bool check(unsigned char out, unsigned char& in, bool& fastCgb) = 0;
+ 		virtual unsigned char send(unsigned char data, bool fastCgb) = 0;
+ };

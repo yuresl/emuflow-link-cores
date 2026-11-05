@@ -1,0 +1,170 @@
+diff --git a/libretro/libretro.cpp b/libretro/libretro.cpp
+index ad4efd7..efc782e 100644
+--- a/libretro/libretro.cpp
++++ b/libretro/libretro.cpp
+@@ -6,6 +6,13 @@
+ #include <streams/file_stream.h>
+ 
+ #include "handy.h"
++#include <emscripten.h>
++
++/* EmuFlow: o ComLynx passa pelo site (Module.emuflowSerial). */
++static void emuflow_comlynx_tx(int data, ULONG)
++{
++   EM_ASM({ var w = Module['emuflowSerial']; if (w) w['tx']($0); }, data);
++}
+ 
+ #ifdef _3DS
+ extern "C" void* linearMemAlign(size_t size, size_t alignment);
+@@ -1020,6 +1027,7 @@ void retro_run(void)
+             RETRO_DEVICE_ID_JOYPAD_SELECT);
+    }
+    lynx->SetButtonData(res);
++   lynx->ComLynxTxCallback(emuflow_comlynx_tx, 0);
+ 
+    if (select_button && !lynx_rotation_button_down)
+    {
+@@ -1081,6 +1089,15 @@ void retro_run(void)
+    frame_available = false;
+ 
+    while (gSystemCycleCount - gLastRunCycleCount < retro_cycles_per_frame) {
++      {
++         static ULONG lastTick;
++         ULONG tick = gSystemCycleCount >> 10;
++         if (tick != lastTick)
++         {
++            lastTick = tick;
++            EM_ASM({ var w = Module['emuflowSerial']; if (w) w['sync']($0); }, (int)tick);
++         }
++      }
+       lynx->Update();
+ 
+       for (int lcv = 1; lcv < retro_overclock; lcv++)
+diff --git a/lynx/mikie.cpp b/lynx/mikie.cpp
+index 5248bde..238cdc7 100644
+--- a/lynx/mikie.cpp
++++ b/lynx/mikie.cpp
+@@ -47,6 +47,7 @@
+ 
+ #define MIKIE_CPP
+ 
++#include <emscripten.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -1585,6 +1586,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          break;
+ 
+       case (TIM0CTLB&0xff):
++         if(mTIM_0_TIMER_DONE && !(data&0x08)) mTIM_0_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_0_TIMER_DONE=data&0x08;
+          mTIM_0_LAST_CLOCK=data&0x04;
+          mTIM_0_BORROW_IN=data&0x02;
+@@ -1592,6 +1594,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          //			BlowOut();
+          break;
+       case (TIM1CTLB&0xff):
++         if(mTIM_1_TIMER_DONE && !(data&0x08)) mTIM_1_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_1_TIMER_DONE=data&0x08;
+          mTIM_1_LAST_CLOCK=data&0x04;
+          mTIM_1_BORROW_IN=data&0x02;
+@@ -1599,6 +1602,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          //			BlowOut();
+          break;
+       case (TIM2CTLB&0xff):
++         if(mTIM_2_TIMER_DONE && !(data&0x08)) mTIM_2_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_2_TIMER_DONE=data&0x08;
+          mTIM_2_LAST_CLOCK=data&0x04;
+          mTIM_2_BORROW_IN=data&0x02;
+@@ -1606,6 +1610,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          //			BlowOut();
+          break;
+       case (TIM3CTLB&0xff):
++         if(mTIM_3_TIMER_DONE && !(data&0x08)) mTIM_3_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_3_TIMER_DONE=data&0x08;
+          mTIM_3_LAST_CLOCK=data&0x04;
+          mTIM_3_BORROW_IN=data&0x02;
+@@ -1613,6 +1618,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          //			BlowOut();
+          break;
+       case (TIM4CTLB&0xff):
++         if(mTIM_4_TIMER_DONE && !(data&0x08)) mTIM_4_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_4_TIMER_DONE=data&0x08;
+          mTIM_4_LAST_CLOCK=data&0x04;
+          mTIM_4_BORROW_IN=data&0x02;
+@@ -1620,6 +1626,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          //			BlowOut();
+          break;
+       case (TIM5CTLB&0xff):
++         if(mTIM_5_TIMER_DONE && !(data&0x08)) mTIM_5_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_5_TIMER_DONE=data&0x08;
+          mTIM_5_LAST_CLOCK=data&0x04;
+          mTIM_5_BORROW_IN=data&0x02;
+@@ -1627,6 +1634,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          //			BlowOut();
+          break;
+       case (TIM6CTLB&0xff):
++         if(mTIM_6_TIMER_DONE && !(data&0x08)) mTIM_6_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_6_TIMER_DONE=data&0x08;
+          mTIM_6_LAST_CLOCK=data&0x04;
+          mTIM_6_BORROW_IN=data&0x02;
+@@ -1634,6 +1642,7 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          //			BlowOut();
+          break;
+       case (TIM7CTLB&0xff):
++         if(mTIM_7_TIMER_DONE && !(data&0x08)) mTIM_7_LAST_COUNT=gSystemCycleCount; // EmuFlow
+          mTIM_7_TIMER_DONE=data&0x08;
+          mTIM_7_LAST_CLOCK=data&0x04;
+          mTIM_7_BORROW_IN=data&0x02;
+@@ -1949,13 +1958,14 @@ void CMikie::Poke(ULONG addr,UBYTE data)
+          // therefore any transmitted data will loopback
+          //
+          mUART_TX_DATA=data;
+-         // Calculate Parity data
++         // EmuFlow: o nono bit vai junto, como no aparelho. Sem ele, quem recebe sempre via paridade zero
+          if(mUART_PARITY_ENABLE) {
+-            // Calc parity value
+-            // Leave at zero !!
+-         } else {
++            int ones=0;
++            for(int bit=0;bit<8;bit++) ones+=(data>>bit)&1;
++            if((ones&1)==(mUART_PARITY_EVEN?1:0)) mUART_TX_DATA|=0x0100;
++         } else if(mUART_PARITY_EVEN) {
+             // If disabled then the PAREVEN bit is sent
+-            if(mUART_PARITY_EVEN) data|=0x0100;
++            mUART_TX_DATA|=0x0100;
+          }
+          // Set countdown to transmission
+          mUART_TX_COUNTDOWN=UART_TX_TIME_PERIOD;
+@@ -2793,6 +2803,18 @@ inline void CMikie::Update(void)
+             //
+             // Rx & Tx are loopedback due to comlynx structure
+ 
++            // EmuFlow: um byte de cada vez. Com dois na fila, o Handy espera UART_RX_NEXT_DELAY entre eles, mais que o
++            // limite entre bytes dos jogos, e o pacote chega picado
++            if(mUART_Rx_waiting==0) {
++               int incoming=EM_ASM_INT({ var w = Module['emuflowSerial']; return w ? w['rx']() : -1; });
++               if(incoming>=0) {
++                  // Os dois no fio ao mesmo tempo: no aparelho, o byte chega estragado, e o jogo sorteia outro atraso.
++                  // Se ficasse na fila, seria lido depois como o inicio de um pacote.
++                  if(mUART_TX_IRQ_ENABLE || !(mUART_TX_COUNTDOWN&UART_TX_INACTIVE)) mUART_Rx_framing_error=1;
++                  else ComLynxRxData(incoming);
++               }
++            }
++
+             //
+             // Receive
+             //
+diff --git a/lynx/mikie.h b/lynx/mikie.h
+index cabeae6..9513f51 100644
+--- a/lynx/mikie.h
++++ b/lynx/mikie.h
+@@ -81,7 +81,7 @@ class CSystem;
+ #define	UART_MAX_RX_QUEUE	32
+ #define UART_TX_TIME_PERIOD	(11)
+ #define UART_RX_TIME_PERIOD	(11)
+-#define UART_RX_NEXT_DELAY	(44)
++#define UART_RX_NEXT_DELAY	(0)
+ 
+ typedef struct
+ {

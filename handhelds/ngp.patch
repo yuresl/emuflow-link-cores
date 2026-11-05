@@ -1,0 +1,127 @@
+diff --git a/libretro.c b/libretro.c
+index ef01e22..3735375 100644
+--- a/libretro.c
++++ b/libretro.c
+@@ -558,8 +558,14 @@ static void update_input(void)
+          input_buf |= (1 << i);
+ }
+ 
++extern int flash_dirty_frames;
++extern void flash_commit(void);
++
+ void retro_run(void)
+ {
++   if (flash_dirty_frames > 0 && --flash_dirty_frames == 0)
++      flash_commit();
++
+    int total = 0;
+    unsigned width, height;
+    static int16_t sound_buf[0x10000];
+diff --git a/mednafen/ngp/biosHLE.c b/mednafen/ngp/biosHLE.c
+index fc5d39b..cda344f 100644
+--- a/mednafen/ngp/biosHLE.c
++++ b/mednafen/ngp/biosHLE.c
+@@ -317,6 +317,7 @@ void iBIOSHLE(void)
+ 
+             if (system_comms_read(&data))
+             {
++               if (loadB(0x6D01)) storeB(0x6D01, loadB(0x6D01) - 1); /* EmuFlow */
+                rCodeB(0x30) = 0;	//COM_BUF_OK
+                rCodeB(0x35) = data;
+ 
+@@ -388,6 +389,7 @@ void iBIOSHLE(void)
+             if (!system_comms_read(&data))
+                break;
+ 
++            if (loadB(0x6D01)) storeB(0x6D01, loadB(0x6D01) - 1); /* EmuFlow */
+             /* Read data into (XHL3++) */
+             storeB(rCodeL(0x3C), data);
+             rCodeL(0x3C)++;   /* Next data */
+diff --git a/mednafen/ngp/flash.c b/mednafen/ngp/flash.c
+index e7b398f..4bfe6d8 100644
+--- a/mednafen/ngp/flash.c
++++ b/mednafen/ngp/flash.c
+@@ -178,10 +178,14 @@ void flash_read(void)
+    free(flashdata);
+ }
+ 
++int flash_dirty_frames = 0;
++
+ void flash_write(uint32_t start_address, uint16_t length)
+ {
+    uint16_t i;
+ 
++   flash_dirty_frames = 60;
++
+    //Now we need a new flash command before the next flash write will work!
+    memory_flash_command = false;
+ 
+diff --git a/mednafen/ngp/interrupt.c b/mednafen/ngp/interrupt.c
+index b23abfa..1e82b66 100644
+--- a/mednafen/ngp/interrupt.c
++++ b/mednafen/ngp/interrupt.c
+@@ -279,6 +279,8 @@ bool updateTimers(void *data, int cputicks)
+ 
+       timer_hint -= TIMER_HINT_RATE;	/* Start of next scanline */
+ 
++      system_comms_line();
++
+       /* Comms. Read interrupt */
+       if ((COMMStatus & 1) == 0 && system_comms_poll(&_data))
+       {
+diff --git a/mednafen/ngp/system.c b/mednafen/ngp/system.c
+index 6ebfb2f..0abf39e 100644
+--- a/mednafen/ngp/system.c
++++ b/mednafen/ngp/system.c
+@@ -10,9 +10,34 @@
+ 
+ #include <streams/file_stream.h>
+ 
+-bool system_comms_read(uint8_t* buffer) { return 0; }
+-bool system_comms_poll(uint8_t* buffer) { return 0; }
+-void system_comms_write(uint8_t data) { }
++/* EmuFlow: o cabo passa pelo site (Module.emuflowSerial). */
++#include <emscripten.h>
++bool system_comms_read(uint8_t* buffer)
++{
++   int value = buffer ? EM_ASM_INT({ var w = Module['emuflowSerial']; return w ? w['rx']() : -1; }) : EM_ASM_INT({ var w = Module['emuflowSerial']; return w ? w['peek']() : -1; });
++   if (value < 0)
++      return 0;
++   if (buffer)
++      *buffer = (uint8_t)value;
++   return 1;
++}
++bool system_comms_poll(uint8_t* buffer)
++{
++   int value = EM_ASM_INT({ var w = Module['emuflowSerial']; return w ? w['peek']() : -1; });
++   if (value < 0)
++      return 0;
++   if (buffer)
++      *buffer = (uint8_t)value;
++   return 1;
++}
++void system_comms_write(uint8_t data) { EM_ASM({ var w = Module['emuflowSerial']; if (w) w['tx']($0); }, data); }
++
++void system_comms_line(void)
++{
++   static int lines;
++   lines++;
++   EM_ASM({ var w = Module['emuflowSerial']; if (w) w['sync']($0); }, lines);
++}
+ 
+ bool system_io_flash_read(uint8_t *s, uint32_t len)
+ {
+diff --git a/mednafen/ngp/system.h b/mednafen/ngp/system.h
+index 25e5c35..a1d259b 100644
+--- a/mednafen/ngp/system.h
++++ b/mednafen/ngp/system.h
+@@ -41,6 +41,9 @@ bool system_comms_poll(uint8_t* buffer);
+ 	the data is written. USE RELIABLE COMMS! Data cannot be re-requested. */
+ void system_comms_write(uint8_t data);
+ 
++/* EmuFlow: uma vez por linha, para os dois consoles andarem juntos. */
++void system_comms_line(void);
++
+ 
+ /*! Reads as much of the file specified by 'filename' into the given, 
+ 	preallocated buffer. This is rom data */

@@ -1,0 +1,1 @@
+{"name":"mgba","extensions":["gb","gbc","gba"],"makeoptions":{"buildpath":"./","makescript":"CMake","arguments":[]},"options":{},"save":"srm","license":"LICENSE","repo":"https://github.com/Aelvryx/mgba-wifi-link"}
