@@ -11,7 +11,7 @@ Receitas dos cores que o [EmuFlow](https://emuflow.com.br) usa no multiplayer do
 | `handhelds/` | WonderSwan | [beetle-wswan-libretro](https://github.com/libretro/beetle-wswan-libretro) | GPL-2.0 |
 | `handhelds/` | Lynx | [libretro-handy](https://github.com/libretro/libretro-handy) | Ver o repositório do core |
 | `handhelds/` | Game Gear | [Genesis-Plus-GX](https://github.com/libretro/Genesis-Plus-GX) | Ver `LICENSE.txt` do core |
-| `rcheevos/` | NES (conquistas ao vivo) | [libretro-fceumm (EmulatorJS)](https://github.com/EmulatorJS/libretro-fceumm) + [rcheevos](https://github.com/RetroAchievements/rcheevos) do RetroArch | GPL-2.0 (fceumm), MIT (rcheevos) |
+| `rcheevos/` | Conquistas ao vivo nos consoles de cartucho sem cabo: NES, SNES, Master System e SG-1000, 32X, PC Engine, Atari 2600 e 7800, Virtual Boy, ColecoVision, Intellivision e Jaguar | Os forks do EmulatorJS listados em `rcheevos/cores.list` (fceumm, snes9x, smsplus, picodrive, beetle-pce, stella2014, prosystem, beetle-vb, Gearcoleco, FreeIntv, virtualjaguar) + [rcheevos](https://github.com/RetroAchievements/rcheevos) do RetroArch | A de cada core (ver o repositório dele), MIT (rcheevos) |
 
 Todos são ligados ao [RetroArch do EmulatorJS](https://github.com/EmulatorJS/RetroArch), no commit indicado em cada `versions.env`.
 
@@ -26,6 +26,15 @@ docker run --rm -v emuflow-ppsspp-work:/work -v "$PWD/melonds:/src:ro" -v "$PWD/
 
 Em `handhelds/`, `build.sh` recebe o console (`ngp`, `wswan`, `handy` ou `gg`), e os patches são gerados pelo `apply-hh.py`.
 
+Os builds com cabo (`gambatte/`, `mgba/`, `handhelds/`) também levam as conquistas ao vivo e precisam da pasta `rcheevos/` montada em `/cheevos`: acrescente `-v "$PWD/rcheevos:/cheevos:ro"` ao comando acima.
+
 ## Conquistas ao vivo (`rcheevos/`)
 
 `ejs_cheevos.c` liga o `rc_client` do [rcheevos](https://github.com/RetroAchievements/rcheevos) (o que já vem em `deps/rcheevos` no RetroArch do EmulatorJS) ao site: funções exportadas `ejs_cheevos_*`, pedidos HTTP repassados à página por `Module.ejsCheevosHttp` e eventos em JSON por `Module.ejsCheevosEvent`. A memória do jogo é lida pelo mapa de memória do core (`rc_libretro`), e `rc_client_do_frame` roda depois de cada quadro. O `patch-retroarch.py` acrescenta isso ao `Makefile.emulatorjs` e ao `runloop.c` quando `EJS_CHEEVOS=1`. O `Dockerfile` desta pasta monta a imagem `emuflow-ppsspp-build`.
+
+`build.sh` recebe os cores a compilar (sem argumentos, todos os de `cores.list`), cada um com o repositório, o commit, a pasta e o makefile em `cores.list` e o `<core>.core.json` que vai dentro do pacote. `retroarch-cheevos.sh` aplica a ponte num RetroArch já no commit certo; os builds com cabo usam o mesmo script.
+
+```bash
+docker run --rm -v emuflow-ppsspp-work:/work -v "$PWD/rcheevos:/src:ro" -v "$PWD/rcheevos/out:/out" emuflow-ppsspp-build \
+  bash -c "tr -d '\r' < /src/build.sh > /tmp/b.sh; bash /tmp/b.sh snes9x picodrive"
+```

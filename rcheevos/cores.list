@@ -1,0 +1,15 @@
+# Cores sem cabo compilados com as conquistas ao vivo (os do cabo saem das pastas deles, com o /cheevos montado).
+# Fonte: os forks do EmulatorJS (repo, pasta e makefile de public/emulatorjs/cores/cores.json), no último commit de
+# cada um, anterior aos cores instalados: os save states continuam valendo.
+# nome           repositório                                              commit                                    pasta                 makefile
+fceumm           https://github.com/EmulatorJS/libretro-fceumm            e1630de02074801eb96f3bc4ff33f69df9554c69  .                     Makefile.libretro
+snes9x           https://github.com/EmulatorJS/snes9x                     2d4cce69f4fe1c53a2c1423cdc06f2dea8b870a1  libretro              Makefile
+smsplus          https://github.com/EmulatorJS/smsplus-gx                 c642bbd0680b5959180a420036108893d0aec961  .                     Makefile.libretro
+picodrive        https://github.com/EmulatorJS/picodrive                  c38cb8a0d9099d9c5a120af17d20f5e762209bfd  .                     Makefile.libretro
+mednafen_pce     https://github.com/EmulatorJS/beetle-pce-libretro        a178f2f002b3ec58945061424cb412dcf18b87ce  .                     Makefile
+stella2014       https://github.com/EmulatorJS/stella2014-libretro        1f578c36382bb5a86a0fe245973fa557f369738b  .                     Makefile
+prosystem        https://github.com/EmulatorJS/prosystem-libretro         f73c953c02e104b384ae842344e4a3f25e5e5067  .                     Makefile
+beetle_vb        https://github.com/EmulatorJS/beetle-vb-libretro         f94d3e8f285a5ba1d011b224655f113c96a55235  .                     Makefile
+gearcoleco       https://github.com/EmulatorJS/Gearcoleco                 5ee7ca213a491007ed82e411823fd0ccbe7614cd  platforms/libretro    Makefile
+freeintv         https://github.com/EmulatorJS/FreeIntv                   d80fbad3922dc3d082410b5b379073614bec1842  .                     Makefile
+virtualjaguar    https://github.com/EmulatorJS/virtualjaguar-libretro     2279c72953b1ebdc6b2473be0abf48fe09a0f2a4  .                     Makefile

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Compila o gambatte com o cabo (D106) nas duas variantes que o player usa.
-# Roda na imagem emuflow-ppsspp-build (Emscripten 3.1.74): /src = esta pasta, /out = saida, /work = volume de cache.
+# Roda na imagem emuflow-ppsspp-build (Emscripten 3.1.74): /src = esta pasta, /out = saida, /work = volume de cache,
+# /cheevos = link-core/rcheevos (conquistas ao vivo).
 set -euo pipefail
 tr -d '\r' < /src/versions.env > /tmp/v.env; . /tmp/v.env
 mkdir -p /work/link /out; cd /work/link
@@ -16,6 +17,10 @@ emmake make -C gambatte -j"$(nproc)" -f Makefile.libretro platform=emscripten >/
 [ -d RetroArch/.git ] || git clone -q --filter=blob:none "$RETROARCH_REPO" RetroArch
 git -C RetroArch fetch -q origin
 git -C RetroArch checkout -q -f "$RETROARCH_COMMIT"
+# Conquistas ao vivo (D151): a ponte do link-core/rcheevos, montada em /cheevos.
+[ -f /cheevos/retroarch-cheevos.sh ] || { echo "monte link-core/rcheevos em /cheevos (-v ...:/cheevos:ro)"; exit 1; }
+tr -d '\r' < /cheevos/retroarch-cheevos.sh > /tmp/retroarch-cheevos.sh
+bash /tmp/retroarch-cheevos.sh RetroArch /cheevos
 find RetroArch/emulatorjs -maxdepth 1 -name "*.bc" -delete
 cp gambatte/*.bc RetroArch/emulatorjs/
 CORES=/work/link/EmulatorJS/data/cores
@@ -29,7 +34,7 @@ START=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
 for variant in "" "--legacy"; do
   name=gambatte${variant:+-legacy}-wasm.data
   rm -f "${CORES:?}/${name:?}"
-  (cd RetroArch/emulatorjs && emmake bash ./build-emulatorjs.sh --clean $variant >/tmp/ra.log 2>&1) || { tail -30 /tmp/ra.log; exit 1; }
+  (cd RetroArch/emulatorjs && EJS_CHEEVOS=1 emmake bash ./build-emulatorjs.sh --clean $variant >/tmp/ra.log 2>&1) || { tail -30 /tmp/ra.log; exit 1; }
   [ -f "$CORES/$name" ] || { tail -30 /tmp/ra.log; exit 1; }
   (cd "$META" && 7z a -bd -t7z "$CORES/$name" core.json build.json license.txt >/dev/null)
   cp "$CORES/$name" "/out/$name"

@@ -31,7 +31,7 @@ docker run --rm -v emuflow-ppsspp-work:/work -v "$W:/s" emuflow-ppsspp-build bas
 
 [ "$mode" = "--patch" ] && exit 0
 
-docker run --rm --name link-hh -v emuflow-ppsspp-work:/work -v "$W:/src:ro" -v "$W/out:/out" emuflow-ppsspp-build \
+docker run --rm --name link-hh -v emuflow-ppsspp-work:/work -v "$W:/src:ro" -v "$W/../rcheevos:/cheevos:ro" -v "$W/out:/out" emuflow-ppsspp-build \
   bash -c "tr -d '\r' < /src/build.sh > /tmp/b.sh; bash /tmp/b.sh $id" 2>&1 \
   | grep -v '^-rw\|^drw\|^total\|^$\|^/out\|^-rwx' | tail -6
 
