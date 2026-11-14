@@ -20,3 +20,6 @@ yabause          https://github.com/EmulatorJS/yabause                    7b612a
 opera            https://github.com/EmulatorJS/opera-libretro             e96e6292659b266bb6dbca69835aad069e83906e  .                     Makefile
 # Nintendo 64.
 mupen64plus_next https://github.com/EmulatorJS/mupen64plus-libretro-nx       4a3925d2861f17719586dffb178c1dd5339d3a68  .                     Makefile
+parallel_n64     https://github.com/EmulatorJS/parallel-n64               917b47be676d1b34e2a8dd6409188a52e2fb7265  .                     Makefile
+# Arcade: o RA só tem conjuntos para o FBNeo (o MAME 2003 fica sem conquistas ao vivo).
+fbneo            https://github.com/EmulatorJS/FBNeo                      d5f072e147cfd01cb7c095470fd9c5c2697753d8  src/burner/libretro   Makefile

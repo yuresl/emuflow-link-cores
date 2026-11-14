@@ -79,6 +79,12 @@ if 'HAVE_STATIC_CORES=' not in text:
     text = text.replace('HAVE_CHD=$chd ', 'HAVE_CHD=$chd HAVE_STATIC_CORES=$staticchd HAVE_BUILTINFLAC=${EJS_CHEEVOS:+1} ')
     open('emulatorjs/build-emulatorjs.sh', 'w', encoding='utf-8').write(text)
 
+# O parallel_n64 roda o emulador numa fibra (emscripten_fiber_swap) e aborta sem Asyncify ("compile your program
+# with async support"), mas falta na lista needsAsync do EmulatorJS: o core oficial não abre nenhum jogo. É o primeiro
+# core do N64 no Safari do iPhone/iPad.
+patch('emulatorjs/build-emulatorjs.sh', 'needsAsync=("mupen64plus_next" ', 'needsAsync=("mupen64plus_next" "parallel_n64" ',
+      '"parallel_n64" "dosbox_pure"')
+
 # runloop.c: rc_client_do_frame depois de cada quadro; idle no menu/pausa.
 patch('runloop.c', """#ifdef HAVE_CHEEVOS
    if (cheevos_enable)

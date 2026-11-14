@@ -11,7 +11,7 @@ Receitas dos cores que o [EmuFlow](https://emuflow.com.br) usa no multiplayer do
 | `handhelds/` | WonderSwan | [beetle-wswan-libretro](https://github.com/libretro/beetle-wswan-libretro) | GPL-2.0 |
 | `handhelds/` | Lynx | [libretro-handy](https://github.com/libretro/libretro-handy) | Ver o repositório do core |
 | `handhelds/` | Game Gear | [Genesis-Plus-GX](https://github.com/libretro/Genesis-Plus-GX) | Ver `LICENSE.txt` do core |
-| `rcheevos/` | Conquistas ao vivo nos consoles sem cabo: NES, SNES, Master System e SG-1000, 32X, PC Engine e PC Engine CD, Atari 2600 e 7800, Virtual Boy, ColecoVision, Intellivision, Jaguar, PS1, PC-FX, Saturn, 3DO e Nintendo 64 | Os forks do EmulatorJS listados em `rcheevos/cores.list` (fceumm, snes9x, smsplus, picodrive, beetle-pce, stella2014, prosystem, beetle-vb, Gearcoleco, FreeIntv, virtualjaguar, pcsx_rearmed, beetle-pcfx, yabause, opera, mupen64plus-libretro-nx) + [rcheevos](https://github.com/RetroAchievements/rcheevos) do RetroArch | A de cada core (ver o repositório dele), MIT (rcheevos) |
+| `rcheevos/` | Conquistas ao vivo nos consoles sem cabo: NES, SNES, Master System e SG-1000, 32X, PC Engine e PC Engine CD, Atari 2600 e 7800, Virtual Boy, ColecoVision, Intellivision, Jaguar, PS1, PC-FX, Saturn, 3DO, Nintendo 64 e arcade (FBNeo) | Os forks do EmulatorJS listados em `rcheevos/cores.list` (fceumm, snes9x, smsplus, picodrive, beetle-pce, stella2014, prosystem, beetle-vb, Gearcoleco, FreeIntv, virtualjaguar, pcsx_rearmed, beetle-pcfx, yabause, opera, mupen64plus-libretro-nx, parallel-n64, FBNeo) + [rcheevos](https://github.com/RetroAchievements/rcheevos) do RetroArch | A de cada core (ver o repositório dele), MIT (rcheevos) |
 
 Todos são ligados ao [RetroArch do EmulatorJS](https://github.com/EmulatorJS/RetroArch), no commit indicado em cada `versions.env`.
 
@@ -42,3 +42,5 @@ docker run --rm -v emuflow-ppsspp-work:/work -v "$PWD/rcheevos:/src:ro" -v "$PWD
 Jogos de disco: o hash do `.chd` usa o leitor do próprio RetroArch (`cdfs` + `libchdr` do libretro-common). O `patch-retroarch.py` liga o FLAC embutido (`HAVE_BUILTINFLAC=1`), porque os `.chd` de CD do chdman guardam o áudio em FLAC, e, nos cores que trazem o próprio libchdr (`noCHD` do `build-emulatorjs.sh`: pcsx_rearmed, genesis_plus_gx), compila o do RetroArch com os símbolos renomeados (`HAVE_STATIC_CORES=1`). O Sega CD sai do `genesis_plus_gx` de `handhelds/`.
 
 O `rhash/aes.c` do rcheevos é o tiny-AES, que o melonDS também traz: o `patch-retroarch.py` renomeia as funções `AES_*` do RetroArch para `rc_AES_*`.
+
+O `parallel-n64` usa fibras (`emscripten_fiber_swap`) e precisa de Asyncify, mas falta na lista `needsAsync` do `build-emulatorjs.sh` do EmulatorJS (sem ela, o core aborta ao abrir qualquer jogo): o `patch-retroarch.py` acrescenta.
