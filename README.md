@@ -11,7 +11,7 @@ Receitas dos cores que o [EmuFlow](https://emuflow.com.br) usa no multiplayer do
 | `handhelds/` | WonderSwan | [beetle-wswan-libretro](https://github.com/libretro/beetle-wswan-libretro) | GPL-2.0 |
 | `handhelds/` | Lynx | [libretro-handy](https://github.com/libretro/libretro-handy) | Ver o repositório do core |
 | `handhelds/` | Game Gear | [Genesis-Plus-GX](https://github.com/libretro/Genesis-Plus-GX) | Ver `LICENSE.txt` do core |
-| `rcheevos/` | Conquistas ao vivo nos consoles de cartucho sem cabo: NES, SNES, Master System e SG-1000, 32X, PC Engine, Atari 2600 e 7800, Virtual Boy, ColecoVision, Intellivision e Jaguar | Os forks do EmulatorJS listados em `rcheevos/cores.list` (fceumm, snes9x, smsplus, picodrive, beetle-pce, stella2014, prosystem, beetle-vb, Gearcoleco, FreeIntv, virtualjaguar) + [rcheevos](https://github.com/RetroAchievements/rcheevos) do RetroArch | A de cada core (ver o repositório dele), MIT (rcheevos) |
+| `rcheevos/` | Conquistas ao vivo nos consoles sem cabo: NES, SNES, Master System e SG-1000, 32X, PC Engine e PC Engine CD, Atari 2600 e 7800, Virtual Boy, ColecoVision, Intellivision, Jaguar, PS1, PC-FX, Saturn e 3DO | Os forks do EmulatorJS listados em `rcheevos/cores.list` (fceumm, snes9x, smsplus, picodrive, beetle-pce, stella2014, prosystem, beetle-vb, Gearcoleco, FreeIntv, virtualjaguar, pcsx_rearmed, beetle-pcfx, yabause, opera) + [rcheevos](https://github.com/RetroAchievements/rcheevos) do RetroArch | A de cada core (ver o repositório dele), MIT (rcheevos) |
 
 Todos são ligados ao [RetroArch do EmulatorJS](https://github.com/EmulatorJS/RetroArch), no commit indicado em cada `versions.env`.
 
@@ -38,3 +38,5 @@ Os builds com cabo (`gambatte/`, `mgba/`, `handhelds/`) também levam as conquis
 docker run --rm -v emuflow-ppsspp-work:/work -v "$PWD/rcheevos:/src:ro" -v "$PWD/rcheevos/out:/out" emuflow-ppsspp-build \
   bash -c "tr -d '\r' < /src/build.sh > /tmp/b.sh; bash /tmp/b.sh snes9x picodrive"
 ```
+
+Jogos de disco: o hash do `.chd` usa o leitor do próprio RetroArch (`cdfs` + `libchdr` do libretro-common). O `patch-retroarch.py` liga o FLAC embutido (`HAVE_BUILTINFLAC=1`), porque os `.chd` de CD do chdman guardam o áudio em FLAC, e, nos cores que trazem o próprio libchdr (`noCHD` do `build-emulatorjs.sh`: pcsx_rearmed, genesis_plus_gx), compila o do RetroArch com os símbolos renomeados (`HAVE_STATIC_CORES=1`). O Sega CD sai do `genesis_plus_gx` de `handhelds/`.

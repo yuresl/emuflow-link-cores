@@ -11,6 +11,9 @@ tr -d '\r' < /src/versions.env > /tmp/v.env; . /tmp/v.env
 tr -d '\r' < /src/cores.list | grep -v '^#' | grep -v '^[[:space:]]*$' > /tmp/cores.list
 tr -d '\r' < /src/retroarch-cheevos.sh > /tmp/retroarch-cheevos.sh
 mkdir -p /work/cheevos /out; cd /work/cheevos
+# O cache do Emscripten é do container: sem isso, um core que inclui <zlib.h> (pcsx_rearmed) só compila depois de
+# outro ter instalado a porta do zlib.
+embuilder build zlib >/dev/null
 
 [ -d RetroArch/.git ] || git clone -q --filter=blob:none "$RETROARCH_REPO" RetroArch
 git -C RetroArch fetch -q origin

@@ -13,3 +13,8 @@ beetle_vb        https://github.com/EmulatorJS/beetle-vb-libretro         f94d3e
 gearcoleco       https://github.com/EmulatorJS/Gearcoleco                 5ee7ca213a491007ed82e411823fd0ccbe7614cd  platforms/libretro    Makefile
 freeintv         https://github.com/EmulatorJS/FreeIntv                   d80fbad3922dc3d082410b5b379073614bec1842  .                     Makefile
 virtualjaguar    https://github.com/EmulatorJS/virtualjaguar-libretro     2279c72953b1ebdc6b2473be0abf48fe09a0f2a4  .                     Makefile
+# Discos: o hash de .chd usa o leitor do RetroArch (ejs_cheevos.c, HAVE_CHD).
+pcsx_rearmed     https://github.com/EmulatorJS/pcsx_rearmed               588e1338f85a5867e46245f861e3d5958e7a4592  .                     Makefile.libretro
+mednafen_pcfx    https://github.com/EmulatorJS/beetle-pcfx-libretro       b5170235dd6c93a3ad3827f142036f2c27e354bd  .                     Makefile
+yabause          https://github.com/EmulatorJS/yabause                    7b612a6b63dc61f8a8d197e548c95846abace03c  yabause/src/libretro  Makefile
+opera            https://github.com/EmulatorJS/opera-libretro             e96e6292659b266bb6dbca69835aad069e83906e  .                     Makefile

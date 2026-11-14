@@ -2,7 +2,7 @@
 import re
 import sys
 
-RCHEEVOS_OBJ = """deps/rcheevos/src/rc_client.o deps/rcheevos/src/rc_compat.o deps/rcheevos/src/rc_libretro.o \\
+RCHEEVOS_OBJ = """$(LIBRETRO_COMM_DIR)/formats/cdfs/cdfs.o deps/rcheevos/src/rc_client.o deps/rcheevos/src/rc_compat.o deps/rcheevos/src/rc_libretro.o \\
   deps/rcheevos/src/rc_util.o deps/rcheevos/src/rcheevos/alloc.o deps/rcheevos/src/rcheevos/condition.o \\
   deps/rcheevos/src/rcheevos/condset.o deps/rcheevos/src/rcheevos/consoleinfo.o deps/rcheevos/src/rcheevos/format.o \\
   deps/rcheevos/src/rcheevos/lboard.o deps/rcheevos/src/rcheevos/memref.o deps/rcheevos/src/rcheevos/operand.o \\
@@ -34,6 +34,11 @@ patch('Makefile.emulatorjs', 'include Makefile.common\n', f"""include Makefile.c
 ifeq ($(EJS_CHEEVOS), 1)
    DEFINES += -DEMULATORJS_CHEEVOS -DRC_CLIENT_SUPPORTS_HASH -DRC_NO_THREADS -Ideps/rcheevos/include
    OBJ += emulatorjs/ejs_cheevos.o {RCHEEVOS_OBJ}
+   # Cores com o próprio libchdr (noCHD): o Makefile.common renomeia quase tudo do libchdr do RetroArch; faltam estes.
+   ifeq ($(HAVE_STATIC_CORES), 1)
+      DEFINES += -Dcrc16=retroarch_internal_crc16 -Dchd_open_core_file=retroarch_internal_chd_open_core_file \\
+                 -Dchd_read_header=retroarch_internal_chd_read_header
+   endif
    EXPORTED_FUNCTIONS := $(EXPORTED_FUNCTIONS){EXPORTS}
    LDFLAGS := $(subst EXPORTED_FUNCTIONS="$(EXPORTED_FUNCTIONS_BASE)",EXPORTED_FUNCTIONS="$(EXPORTED_FUNCTIONS)",$(LDFLAGS))
 endif
@@ -45,6 +50,29 @@ if 'EXPORTED_FUNCTIONS_BASE' not in text.split('include Makefile.common')[0]:
     text = text.replace('-s EXPORTED_FUNCTIONS="$(EXPORTED_FUNCTIONS)"', '-s EXPORTED_FUNCTIONS="$(EXPORTED_FUNCTIONS_BASE)"', 1)
     text = text.replace('\nEXPORTS :=', '\nEXPORTED_FUNCTIONS_BASE := $(EXPORTED_FUNCTIONS)\nEXPORTS :=', 1)
     open('Makefile.emulatorjs', 'w', encoding='utf-8').write(text)
+
+# build-emulatorjs.sh: com EJS_CHEEVOS=1, todo core sai com o leitor de .chd do RetroArch (o hash dos jogos de
+# disco precisa dele), inclusive os da lista noCHD (genesis_plus_gx, pcsx_rearmed), que trazem o próprio libchdr.
+# HAVE_STATIC_CORES=1 só renomeia os símbolos do libchdr do RetroArch (retroarch_internal_*) para não baterem
+# com os do core.
+# Só nesses: nos outros, o core usa o libchdr do RetroArch (como no build oficial) e renomear puxaria o do core.
+patch('emulatorjs/build-emulatorjs.sh',
+      '''  if [[ $(containsElement $name "${noCHD[@]}") = 1 ]]; then
+    chd=0
+  fi''',
+      '''  staticchd=0
+  if [[ $(containsElement $name "${noCHD[@]}") = 1 ]]; then
+    chd=0
+    if [[ -n "$EJS_CHEEVOS" ]]; then chd=1; staticchd=1; fi
+  fi''',
+      'staticchd=0')
+text = open('emulatorjs/build-emulatorjs.sh', encoding='utf-8').read()
+if 'HAVE_STATIC_CORES=' not in text:
+    if 'HAVE_CHD=$chd ' not in text:
+        sys.exit('build-emulatorjs.sh: HAVE_CHD=$chd não encontrado')
+    # FLAC embutido: os .chd de CD (chdman) guardam o áudio em FLAC, e sem esse codec o chd_open recusa o arquivo.
+    text = text.replace('HAVE_CHD=$chd ', 'HAVE_CHD=$chd HAVE_STATIC_CORES=$staticchd HAVE_BUILTINFLAC=${EJS_CHEEVOS:+1} ')
+    open('emulatorjs/build-emulatorjs.sh', 'w', encoding='utf-8').write(text)
 
 # runloop.c: rc_client_do_frame depois de cada quadro; idle no menu/pausa.
 patch('runloop.c', """#ifdef HAVE_CHEEVOS

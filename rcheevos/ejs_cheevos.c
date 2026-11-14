@@ -17,7 +17,14 @@
 #include <string.h>
 #include <emscripten.h>
 
+#include <file/file_path.h>
+#include <string/stdstring.h>
+#include <streams/interface_stream.h>
+#include <formats/cdfs.h>
+#include <streams/chd_stream.h>
+
 #include "../deps/rcheevos/include/rc_client.h"
+#include "../deps/rcheevos/include/rc_hash.h"
 #include "../deps/rcheevos/src/rc_libretro.h"
 #include "../runloop.h"
 #include "../paths.h"
@@ -336,6 +343,138 @@ EMSCRIPTEN_KEEPALIVE void ejs_cheevos_http_response(int id, int status, const ch
    callback(&response, callback_data);
 }
 
+/* ---------- Leitura de disco para o hash ----------
+ * Igual ao cheevos.c do RetroArch: arquivos pelo intfstream e .chd pelo cdfs
+ * (libchdr do libretro-common, com HAVE_CHD). Sem isso, o rc_hash não lê .chd
+ * e os jogos de disco (PS1, Sega CD, PC Engine CD...) ficam sem conquistas. */
+
+static void *ejs_file_open(const char *path)
+{
+   return intfstream_open_file(path, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+}
+
+static void ejs_file_seek(void *handle, int64_t offset, int origin)
+{
+   intfstream_seek((intfstream_t*)handle, offset, origin);
+}
+
+static int64_t ejs_file_tell(void *handle)
+{
+   return intfstream_tell((intfstream_t*)handle);
+}
+
+static size_t ejs_file_read(void *handle, void *buffer, size_t requested_bytes)
+{
+   return intfstream_read((intfstream_t*)handle, buffer, requested_bytes);
+}
+
+static void ejs_file_close(void *handle)
+{
+   intfstream_close((intfstream_t*)handle);
+   free(handle);
+}
+
+#ifdef HAVE_CHD
+static void *ejs_chd_open_track(const char *path, uint32_t track)
+{
+   cdfs_track_t *cdfs_track;
+   switch (track)
+   {
+      case RC_HASH_CDTRACK_FIRST_DATA:
+         cdfs_track = cdfs_open_data_track(path);
+         break;
+      case RC_HASH_CDTRACK_LAST:
+         cdfs_track = cdfs_open_track(path, CHDSTREAM_TRACK_LAST);
+         break;
+      case RC_HASH_CDTRACK_LARGEST:
+         cdfs_track = cdfs_open_track(path, CHDSTREAM_TRACK_PRIMARY);
+         break;
+      default:
+         cdfs_track = cdfs_open_track(path, track);
+         break;
+   }
+   if (cdfs_track)
+   {
+      cdfs_file_t *file = (cdfs_file_t*)malloc(sizeof(cdfs_file_t));
+      if (cdfs_open_file(file, cdfs_track, NULL))
+         return file; /* o file passa a ser dono do cdfs_track */
+      free(file);
+      cdfs_close_track(cdfs_track);
+   }
+   return NULL;
+}
+
+static size_t ejs_chd_read_sector(void *handle, uint32_t sector, void *buffer, size_t requested_bytes)
+{
+   cdfs_file_t *file = (cdfs_file_t*)handle;
+   uint32_t track_sectors = cdfs_get_num_sectors(file);
+   sector -= cdfs_get_first_sector(file);
+   if (sector >= track_sectors)
+      return 0;
+   cdfs_seek_sector(file, sector);
+   return cdfs_read_file(file, buffer, requested_bytes);
+}
+
+static uint32_t ejs_chd_first_track_sector(void *handle)
+{
+   return cdfs_get_first_sector((cdfs_file_t*)handle);
+}
+
+static void ejs_chd_close_track(void *handle)
+{
+   cdfs_file_t *file = (cdfs_file_t*)handle;
+   if (file)
+   {
+      cdfs_close_track(file->track);
+      cdfs_close_file(file); /* não libera o file */
+      free(file);
+   }
+}
+#endif
+
+static void *ejs_cd_open_track(const char *path, uint32_t track, const rc_hash_iterator_t *iterator)
+{
+   rc_hash_callbacks_t *callbacks = (rc_hash_callbacks_t*)&iterator->callbacks;
+   callbacks->filereader.open = ejs_file_open;
+   callbacks->filereader.seek = ejs_file_seek;
+   callbacks->filereader.tell = ejs_file_tell;
+   callbacks->filereader.read = ejs_file_read;
+   callbacks->filereader.close = ejs_file_close;
+
+   if (string_is_equal_noncase(path_get_extension(path), "chd"))
+   {
+#ifdef HAVE_CHD
+      callbacks->cdreader.open_track_iterator = ejs_cd_open_track;
+      callbacks->cdreader.read_sector = ejs_chd_read_sector;
+      callbacks->cdreader.close_track = ejs_chd_close_track;
+      callbacks->cdreader.first_track_sector = ejs_chd_first_track_sector;
+      return ejs_chd_open_track(path, track);
+#else
+      return NULL;
+#endif
+   }
+   {
+      struct rc_hash_cdreader cdreader;
+      rc_hash_get_default_cdreader(&cdreader);
+      return cdreader.open_track_iterator(path, track, iterator);
+   }
+}
+
+/* Log do rc_client (inclui o do hash) no console do navegador, com o prefixo [cheevos]. */
+static void ejs_log(const char *message, const rc_client_t *client)
+{
+   (void)client;
+   EM_ASM({ console.log('[cheevos] ' + UTF8ToString($0)); }, message);
+}
+
+static void ejs_init_hash_hooks(void)
+{
+   struct rc_hash_cdreader cdreader;
+   rc_hash_get_default_cdreader(&cdreader);
+   cdreader.open_track_iterator = ejs_cd_open_track;
+   rc_hash_init_custom_cdreader(&cdreader);
+}
+
 /* ---------- Funções chamadas pelo site ---------- */
 
 EMSCRIPTEN_KEEPALIVE void ejs_cheevos_init(const char *user_agent_extension)
@@ -347,6 +486,9 @@ EMSCRIPTEN_KEEPALIVE void ejs_cheevos_init(const char *user_agent_extension)
    ejs_client = rc_client_create(ejs_read_memory, ejs_server_call);
    rc_client_set_event_handler(ejs_client, ejs_event_handler);
    rc_client_set_hardcore_enabled(ejs_client, 0);
+   /* Avisos e erros (ex.: "Could not open track", conquista com endereço inválido). Para depurar, VERBOSE. */
+   rc_client_enable_logging(ejs_client, RC_CLIENT_LOG_LEVEL_WARN, ejs_log);
+   ejs_init_hash_hooks();
 }
 
 static void ejs_login_callback(int result, const char *error_message, rc_client_t *client, void *userdata)
