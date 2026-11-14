@@ -15,7 +15,7 @@ RCHEEVOS_OBJ = """$(LIBRETRO_COMM_DIR)/formats/cdfs/cdfs.o deps/rcheevos/src/rc_
 
 EXPORTS = ",_ejs_cheevos_init,_ejs_cheevos_login_token,_ejs_cheevos_load_game,_ejs_cheevos_set_hardcore," \
           "_ejs_cheevos_reset,_ejs_cheevos_reset_progress,_ejs_cheevos_change_media,_ejs_cheevos_unload," \
-          "_ejs_cheevos_http_response"
+          "_ejs_cheevos_http_response,_ejs_cheevos_load_game_hash"
 
 
 def patch(path, old, new, marker):

@@ -552,6 +552,19 @@ EMSCRIPTEN_KEEPALIVE void ejs_cheevos_load_game(int console_id)
    rc_client_begin_identify_and_load_game(ejs_client, (uint32_t)console_id, path, NULL, 0, ejs_load_callback, NULL);
 }
 
+/* Carrega pelo hash que o site já tem (o raHash do catálogo, calculado pelo RAHasher no servidor), sem ler o
+ * arquivo: para o PSP, cujo disco é lido sob demanda, e para quando o hash no navegador falha. */
+EMSCRIPTEN_KEEPALIVE void ejs_cheevos_load_game_hash(int console_id, const char *hash)
+{
+   if (!ejs_client || !hash || !*hash)
+   {
+      emit_message("load_failed", "Sem o hash do jogo.");
+      return;
+   }
+   ejs_init_memory((uint32_t)console_id);
+   rc_client_begin_load_game(ejs_client, hash, ejs_load_callback, NULL);
+}
+
 EMSCRIPTEN_KEEPALIVE void ejs_cheevos_set_hardcore(int enabled)
 {
    if (ejs_client)
