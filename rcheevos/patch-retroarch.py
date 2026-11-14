@@ -34,6 +34,11 @@ patch('Makefile.emulatorjs', 'include Makefile.common\n', f"""include Makefile.c
 ifeq ($(EJS_CHEEVOS), 1)
    DEFINES += -DEMULATORJS_CHEEVOS -DRC_CLIENT_SUPPORTS_HASH -DRC_NO_THREADS -Ideps/rcheevos/include
    OBJ += emulatorjs/ejs_cheevos.o {RCHEEVOS_OBJ}
+   # O rhash/aes.c do rcheevos é o tiny-AES, que o melonDS também traz (DSi): renomeia o do RetroArch.
+   DEFINES += -DAES_init_ctx=rc_AES_init_ctx -DAES_init_ctx_iv=rc_AES_init_ctx_iv -DAES_ctx_set_iv=rc_AES_ctx_set_iv \\
+              -DAES_ECB_encrypt=rc_AES_ECB_encrypt -DAES_ECB_decrypt=rc_AES_ECB_decrypt \\
+              -DAES_CBC_encrypt_buffer=rc_AES_CBC_encrypt_buffer -DAES_CBC_decrypt_buffer=rc_AES_CBC_decrypt_buffer \\
+              -DAES_CTR_xcrypt_buffer=rc_AES_CTR_xcrypt_buffer
    # Cores com o próprio libchdr (noCHD): o Makefile.common renomeia quase tudo do libchdr do RetroArch; faltam estes.
    ifeq ($(HAVE_STATIC_CORES), 1)
       DEFINES += -Dcrc16=retroarch_internal_crc16 -Dchd_open_core_file=retroarch_internal_chd_open_core_file \\

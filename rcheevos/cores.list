@@ -18,3 +18,5 @@ pcsx_rearmed     https://github.com/EmulatorJS/pcsx_rearmed               588e13
 mednafen_pcfx    https://github.com/EmulatorJS/beetle-pcfx-libretro       b5170235dd6c93a3ad3827f142036f2c27e354bd  .                     Makefile
 yabause          https://github.com/EmulatorJS/yabause                    7b612a6b63dc61f8a8d197e548c95846abace03c  yabause/src/libretro  Makefile
 opera            https://github.com/EmulatorJS/opera-libretro             e96e6292659b266bb6dbca69835aad069e83906e  .                     Makefile
+# Nintendo 64.
+mupen64plus_next https://github.com/EmulatorJS/mupen64plus-libretro-nx       4a3925d2861f17719586dffb178c1dd5339d3a68  .                     Makefile
